@@ -1,0 +1,10 @@
+data:
+  raw_path: "data/raw/AirQualityUCI.csv"
+  processed_path: "data/processed/clean_data.csv"
+model:
+  target_col: "CO(GT)"
+  test_size: 0.2
+  lags: 3
+paths:
+  models_dir: "models/"
+  figures_dir: "reports/figures/"

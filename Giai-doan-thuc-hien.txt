@@ -1,0 +1,68 @@
+Giai đoạn 1: Khởi tạo và Cấu hình (Setup)
+Đây là bước tạo nền móng để dự án không bị hardcode (gắn cứng) đường dẫn.
+Cập nhật requirements.txt: Mở file và điền các thư viện cần thiết:Plaintextpandas
+numpy
+scikit-learn
+xgboost
+matplotlib
+seaborn
+pyyaml
+joblib
+
+Chạy lệnh: pip install -r requirements.txt
+
+Thiết lập config.yaml: Chứa toàn bộ thông số dự án.
+YAMLdata:
+  raw_path: "data/raw/AirQualityUCI.csv"
+  processed_path: "data/processed/clean_data.csv"
+model:
+  target_col: "CO(GT)" # Hoặc biến bạn muốn dự đoán, vd: C6H6(GT)
+  test_size: 0.2
+  lags: 3 # Số giờ lấy làm lag features
+paths:
+  models_dir: "models/"
+  figures_dir: "reports/figures/"
+
+Giai đoạn 2: Trích xuất và Làm sạch Dữ liệu (Data Pipeline)
+Tập dữ liệu AirQualityUCI có một đặc điểm khét tiếng là dùng dấu chấm phẩy (;) phân cách cột, dấu phẩy (,) cho số thập phân, và -200 cho giá trị bị thiếu.
+Code src/data_loader.py:
+Viết hàm load_raw_data(filepath).
+Lưu ý quan trọng: Dùng pd.read_csv(filepath, sep=';', decimal=',').
+Gộp 2 cột Date và Time thành một cột Datetime và set nó làm index.Code src/preprocessing.py:
+Viết hàm replace_nulls(df): 
+Thay thế toàn bộ giá trị -200 thành np.nan.
+Viết hàm impute_missing_values(df): 
+Vì là chuỗi thời gian, hãy dùng df.interpolate(method='time') hoặc ffill() thay vì điền trung bình (mean), vì thời tiết/ô nhiễm có tính liên tục.
+Khám phá ở notebooks/01_eda_and_cleaning.ipynb:
+Import các hàm từ src để chạy thử.
+Dùng seaborn.heatmap vẽ ma trận tương quan và lưu ảnh vào reports/figures/correlation_matrix.png.
+
+Giai đoạn 3: Kỹ thuật Trích xuất Đặc trưng (Feature Engineering)
+Mô hình học máy truyền thống (như Random Forest) không tự hiểu được chuỗi thời gian, bạn phải tạo feature cho nó.
+Code src/features.py:Datetime Features: Viết hàm add_time_features(df) tách hour, day_of_week, month từ index để mô hình học được chu kỳ ngày/đêm và ngày nghỉ.
+Lag Features (Giá trị trễ): Viết hàm create_lag_features(df, columns, lags=3).
+Ví dụ: Để dự đoán ô nhiễm lúc 10h, dùng nồng độ ô nhiễm lúc 9h, 8h, 7h (lag 1, 2, 3).
+Rolling Statistics (Tùy chọn): Tạo trung bình trượt (rolling mean) của 6 hoặc 12 giờ qua.
+Lưu dữ liệu: Cuối file features.py hoặc notebook 02, xuất DataFrame đã chuẩn bị xong ra data/processed/clean_data.csv.
+
+Giai đoạn 4: Phân chia Dữ liệu và Đánh giá (Split & Evaluate)
+Code src/evaluate.py:Viết hàm calculate_metrics(y_true, y_pred) trả về MAE, RMSE, và $R^2$.
+Viết hàm plot_predictions(y_true, y_pred, title): 
+Vẽ đồ thị dạng line chart so sánh thực tế vs dự đoán trong 1 khoảng thời gian (vd: 1 tuần) và lưu vào reports/figures/.
+Chia tập Train/Test:Cực kỳ quan trọng: Không được dùng train_test_split có shuffle=True. 
+Dữ liệu chuỗi thời gian phải chia theo mốc thời gian (ví dụ: 80% thời gian đầu làm train, 20% thời gian cuối làm test).
+
+Giai đoạn 5: Huấn luyện Mô hình (Model Training)Code src/models/baselines.py:
+Import LinearRegression và RandomForestRegressor từ Scikit-learn.Viết class hoặc hàm để train và predict.
+Sử dụng dữ liệu đã có các lag_features làm Input ($X$) và cột target_col làm Output ($y$).Code src/models/advanced.py:
+Import XGBRegressor từ XGBoost.Thiết lập các tham số cơ bản (n_estimators=100, learning_rate=0.1).
+Code src/utils.py:Viết hàm save_model(model, filename) dùng joblib.dump lưu vào thư mục models/.
+Viết hàm load_yaml_config(filepath) để đọc cấu hình.
+
+Giai đoạn 6: Thử nghiệm và Hoàn thiện
+Chạy notebooks/03_model_experiments.ipynb:Load dữ liệu từ data/processed/.
+Gọi các mô hình từ baselines.py và advanced.py ra huấn luyện.Đưa kết quả vào evaluate.py để in ra bảng so sánh (Linear Reg vs RF vs XGBoost).
+Lưu mô hình tốt nhất lại thông qua utils.py.
+Viết README.md:
+    + Giải thích dataset.
+    + Hướng dẫn chạy: pip install -r requirements.txt -> chạy data pipeline -> chạy notebook.
